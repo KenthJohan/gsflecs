@@ -145,7 +145,7 @@ static void app_update()
 	gsi_camera2D(gsi, fbs.x, fbs.y);
 	System_Draw2D_Rect(world, g_app.query_draw2d_rect, gsi);
 	System_Draw2D_Text(world, g_app.query_draw2d_text, gsi);
-	gsi_renderpass_submit(gsi, cb, GS_COLOR_WHITE);
+	gsi_renderpass_submit(gsi, cb, fbs.x, fbs.y, GS_COLOR_WHITE);
 
 
 	// Draw GUI
