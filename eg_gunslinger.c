@@ -236,6 +236,7 @@ int32_t loop_gs(int32_t argv, char** argc, ecs_world_t * world)
 	while (gs_app()->is_running)
 	{
 		gs_frame();
+		ecs_progress(world, 1);
 	}
 	// Free engine
 	gs_free(gs_instance());

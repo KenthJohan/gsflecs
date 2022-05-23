@@ -3,6 +3,7 @@
 #include "eg_geometry.h"
 #include "eg_quantity.h"
 #include <stdlib.h>
+#include <stdio.h>
 
 typedef struct
 {
@@ -13,6 +14,7 @@ typedef struct
 #define rand_range(a, b) (((b)-(a))*((float)rand() / (float)RAND_MAX) + (a))
 static void System_Init_Pillars(ecs_iter_t *it)
 {
+	static int q = 0;
 	PillarSpawner *p = ecs_term(it, PillarSpawner, 1);
 	for (int i = 0; i < it->count; i ++)
 	{
@@ -27,6 +29,10 @@ static void System_Init_Pillars(ecs_iter_t *it)
 			ecs_set(it->world, e, EgBoxF32, {hx, h, hz});
 			ecs_add(it->world, e, EgColor);
 			ecs_add(it->world, e, EgDraw1);
+			char buf[128];
+			snprintf(buf, 128, "Box_%i", q);
+			q++;
+			ecs_set_name(it->world, e, buf);
 		}
 	}
 }
@@ -38,6 +44,7 @@ int main(int argc, char *argv[])
 	ecs_log_set_level(0);
 
 	ecs_world_t *world = ecs_init();
+	ecs_singleton_set(world, EcsRest, {0});
 
 	ECS_IMPORT(world, Module_Gunslinger);
 	ECS_IMPORT(world, Module_EgQuantity);
@@ -53,6 +60,10 @@ int main(int argc, char *argv[])
 		ecs_entity_t e4 = ecs_new(world, 0);
 
 
+		ecs_set_name(world, e1, "Wall_1");
+		ecs_set_name(world, e2, "Wall_2");
+		ecs_set_name(world, e3, "Wall_3");
+		ecs_set_name(world, e4, "Wall_4");
 		ecs_set(world, e1, EgDraw1, {2});
 		ecs_set(world, e2, EgDraw, {2});
 		ecs_set(world, e3, EgDraw, {2});
@@ -106,9 +117,15 @@ int main(int argc, char *argv[])
 
 
 	{
-		ecs_set(world, 0, PillarSpawner, {3});
-		ecs_set(world, 0, PillarSpawner, {3});
-		ecs_set(world, 0, PillarSpawner, {4});
+		int n = 5;
+		const ecs_entity_t *e = ecs_bulk_new(world, PillarSpawner, n);
+		for(int i = 0; i < n; ++i)
+		{
+			char buf[128];
+			snprintf(buf, 128, "PillarSpawner_%i", i);
+			ecs_set_name(world, e[i], buf);
+			ecs_set(world, e[i], PillarSpawner, {i});
+		}
 	}
 
 	return loop_gs(argc, argv, world);
