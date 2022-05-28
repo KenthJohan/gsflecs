@@ -13,9 +13,9 @@ ECS_DECLARE(EgPrimitiveRectangle);
 
 
 
-void Module_EgGeometryImport(ecs_world_t *world)
+void EgGeometryImport(ecs_world_t *world)
 {
-	ECS_MODULE(world, Module_EgGeometry);
+	ECS_MODULE(world, EgGeometry);
 
 	ECS_COMPONENT_DEFINE(world, EgRectangleF32);
 	ECS_COMPONENT_DEFINE(world, EgRectangleI32);

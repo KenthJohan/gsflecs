@@ -179,11 +179,11 @@ static void app_update()
 
 
 
-void Module_GunslingerImport(ecs_world_t *world)
+void EgGunslingerImport(ecs_world_t *world)
 {
-	ECS_MODULE(world, Module_Gunslinger);
-	ECS_IMPORT(world, Module_EgQuantity);
-	ECS_IMPORT(world, Module_EgGeometry);
+	ECS_MODULE(world, EgGunslinger);
+	ECS_IMPORT(world, EgQuantity);
+	ECS_IMPORT(world, EgGeometry);
 
 	ECS_COMPONENT_DEFINE(world, EgWindow);
 	ECS_COMPONENT_DEFINE(world, EgDraw);

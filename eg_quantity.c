@@ -128,9 +128,9 @@ ecs_os_free((char*)ptr->value);
 
 
 
-void Module_EgQuantityImport(ecs_world_t *world)
+void EgQuantityImport(ecs_world_t *world)
 {
-	ECS_MODULE(world, Module_EgQuantity);
+	ECS_MODULE(world, EgQuantity);
 
 
 	ECS_COMPONENT_DEFINE(world, EgPosition2F32);
@@ -287,6 +287,15 @@ void Module_EgQuantityImport(ecs_world_t *world)
 	{ .name = "g", .type = ecs_id(ecs_u8_t) },
 	{ .name = "b", .type = ecs_id(ecs_u8_t) },
 	{ .name = "a", .type = ecs_id(ecs_u8_t) }
+	}
+	});
+
+	ecs_doc_set_brief(world, ecs_id(EgText),
+	"Text");
+	ecs_struct_init(world, &(ecs_struct_desc_t) {
+	.entity.entity = ecs_id(EgText),
+	.members = {
+	{ .name = "value", .type = ecs_id(ecs_string_t) }
 	}
 	});
 

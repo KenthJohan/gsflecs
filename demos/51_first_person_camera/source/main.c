@@ -46,9 +46,9 @@ int main(int argc, char *argv[])
 	ecs_world_t *world = ecs_init();
 	ecs_singleton_set(world, EcsRest, {0});
 
-	ECS_IMPORT(world, Module_Gunslinger);
-	ECS_IMPORT(world, Module_EgQuantity);
-	ECS_IMPORT(world, Module_EgGeometry);
+	ECS_IMPORT(world, EgGunslinger);
+	ECS_IMPORT(world, EgQuantity);
+	ECS_IMPORT(world, EgGeometry);
 
 	ECS_COMPONENT(world, PillarSpawner);
 	ECS_TRIGGER(world, System_Init_Pillars, EcsOnSet, PillarSpawner);

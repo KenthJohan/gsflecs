@@ -31,7 +31,7 @@ extern ECS_COMPONENT_DECLARE(EgDraw);
 extern ECS_COMPONENT_DECLARE(EgDraw1);
 
 
-void Module_GunslingerImport(ecs_world_t *world);
+void EgGunslingerImport(ecs_world_t *world);
 
 
 

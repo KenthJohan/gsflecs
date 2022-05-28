@@ -107,4 +107,4 @@ extern ECS_COMPONENT_DECLARE(EgText);
 
 
 
-void Module_EgQuantityImport(ecs_world_t *world);
+void EgQuantityImport(ecs_world_t *world);

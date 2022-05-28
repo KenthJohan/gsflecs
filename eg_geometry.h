@@ -33,4 +33,4 @@ extern ECS_DECLARE(EgPrimitiveLine);
 extern ECS_DECLARE(EgPrimitiveRectangle);
 
 
-void Module_EgGeometryImport(ecs_world_t *world);
+void EgGeometryImport(ecs_world_t *world);
