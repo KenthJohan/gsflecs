@@ -54,6 +54,7 @@ typedef struct
 	ecs_query_t * query_draw3d_box1;
 	ecs_query_t * query_draw2d_rect;
 	ecs_query_t * query_draw2d_text;
+	ecs_query_t * query_camera3d_controller;
 } app_t;
 app_t g_app = {0};
 
@@ -125,8 +126,12 @@ static void app_update()
 	if (gs_platform_key_down(GS_KEYCODE_D)) vel = gs_vec3_add(vel, gs_camera_right(cam));
 	if (gs_platform_key_down(GS_KEYCODE_SPACE)) vel = gs_vec3_add(vel, gs_camera_up(cam));
 	if (gs_platform_key_down(GS_KEYCODE_LEFT_CONTROL)) vel = gs_vec3_add(vel, gs_camera_down(cam));
-	cam->transform.position = gs_vec3_add(cam->transform.position, gs_vec3_scale(gs_vec3_norm(vel), dt * CAM_SPEED * mod));
+	float cam_speed = 5.0f;
+	cam->transform.position = gs_vec3_add(cam->transform.position, gs_vec3_scale(gs_vec3_norm(vel), dt * cam_speed * mod));
 
+
+
+	System_Camera3D_Controller(world, g_app.query_camera3d_controller, platform->time.delta);
 
 
 	// Draw 3D
@@ -237,6 +242,14 @@ void EgGunslingerImport(ecs_world_t *world)
 	g_app.query_draw2d_text = ecs_query_init(world, &(ecs_query_desc_t) {
 	.filter.expr = "EgDraw, EgPosition2F32, EgText, EgColor",
 	.filter.instanced = true
+	});
+
+	g_app.query_camera3d_controller = ecs_query_init(world, &(ecs_query_desc_t) {
+	.filter.terms = {
+	{ .id = ecs_id(EgCamera3D), .inout = EcsIn },
+	{ .id = ecs_id(EgPosition3F32), .inout = EcsInOut },
+	{ .id = ecs_id(EgQuaternionF32), .inout = EcsInOut },
+	}
 	});
 
 	gs_app_desc_t app = {0};

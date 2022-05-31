@@ -4,6 +4,8 @@
 #include <stdlib.h>
 
 
+ECS_COMPONENT_DECLARE(EgQuaternionF32);
+ECS_COMPONENT_DECLARE(EgScale3F32);
 ECS_COMPONENT_DECLARE(EgPosition2F32);
 ECS_COMPONENT_DECLARE(EgPosition3F32);
 ECS_COMPONENT_DECLARE(EgPosition2I32);
@@ -133,6 +135,8 @@ void EgQuantityImport(ecs_world_t *world)
 	ECS_MODULE(world, EgQuantity);
 
 
+	ECS_COMPONENT_DEFINE(world, EgQuaternionF32);
+	ECS_COMPONENT_DEFINE(world, EgScale3F32);
 	ECS_COMPONENT_DEFINE(world, EgPosition2F32);
 	ECS_COMPONENT_DEFINE(world, EgPosition3F32);
 	ECS_COMPONENT_DEFINE(world, EgPosition2I32);
@@ -156,6 +160,25 @@ void EgQuantityImport(ecs_world_t *world)
 	.move = ecs_move(EgText),
 	.copy = ecs_copy(EgText),
 	.dtor = ecs_dtor(EgText)
+	});
+
+	ecs_struct_init(world, &(ecs_struct_desc_t) {
+	.entity.entity = ecs_id(EgQuaternionF32),
+	.members = {
+	{ .name = "x", .type = ecs_id(ecs_f32_t) },
+	{ .name = "y", .type = ecs_id(ecs_f32_t) },
+	{ .name = "z", .type = ecs_id(ecs_f32_t) },
+	{ .name = "w", .type = ecs_id(ecs_f32_t) }
+	}
+	});
+
+	ecs_struct_init(world, &(ecs_struct_desc_t) {
+	.entity.entity = ecs_id(EgScale3F32),
+	.members = {
+	{ .name = "x", .type = ecs_id(ecs_f32_t) },
+	{ .name = "y", .type = ecs_id(ecs_f32_t) },
+	{ .name = "z", .type = ecs_id(ecs_f32_t) }
+	}
 	});
 
 	ecs_struct_init(world, &(ecs_struct_desc_t) {

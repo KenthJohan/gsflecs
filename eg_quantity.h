@@ -6,6 +6,22 @@ typedef struct
 {
 	ecs_f32_t x;
 	ecs_f32_t y;
+	ecs_f32_t z;
+	ecs_f32_t w;
+} EgScale3F32;
+
+typedef struct
+{
+	ecs_f32_t x;
+	ecs_f32_t y;
+	ecs_f32_t z;
+	ecs_f32_t w;
+} EgQuaternionF32;
+
+typedef struct
+{
+	ecs_f32_t x;
+	ecs_f32_t y;
 } EgPosition2F32;
 
 typedef struct
@@ -89,6 +105,8 @@ typedef struct
 	char * value
 } EgText;
 
+extern ECS_COMPONENT_DECLARE(EgQuaternionF32);
+extern ECS_COMPONENT_DECLARE(EgScale3F32);
 extern ECS_COMPONENT_DECLARE(EgPosition2F32);
 extern ECS_COMPONENT_DECLARE(EgPosition3F32);
 extern ECS_COMPONENT_DECLARE(EgPosition2I32);

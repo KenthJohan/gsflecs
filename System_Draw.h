@@ -110,3 +110,72 @@ static void System_Draw2D_Text(ecs_world_t * world, ecs_query_t *query, gs_immed
 	}
 }
 
+
+
+
+/*
+static void System_Draw_Scene(ecs_world_t * world, ecs_query_t *query, gs_immediate_draw_t * gsi, ecs_query_t *query_draw3d_box1, ecs_query_t *query_draw3d_box)
+{
+	const gs_vec2 fbs = gs_platform_framebuffer_sizev(gs_platform_main_window());
+	ecs_iter_t it = ecs_query_iter(world, query);
+	while (ecs_query_next(&it))
+	{
+		EgScene *scene = ecs_term(&it, EgScene, 1);
+		for (int i = 0; i < it.count; i ++)
+		{
+			gsi_defaults(gsi);
+			gsi_camera(gsi, cam, fbs.x, fbs.y);
+			gsi_depth_enabled(gsi, true);
+			gsi_face_cull_enabled(gsi, true);
+			System_Draw3D_Box1(world, query_draw3d_box1, gsi);
+			System_Draw3D_Box(world, query_draw3d_box, gsi);
+		}
+	}
+}
+*/
+
+
+
+
+
+
+static void System_Camera3D_Controller(ecs_world_t * world, ecs_query_t *query, float dt)
+{
+	ecs_iter_t it = ecs_query_iter(world, query);
+	while (ecs_query_next(&it))
+	{
+		EgCamera3D *c = ecs_term(&it, EgCamera3D, 1);
+		gs_vec3 *p = ecs_term(&it, EgPosition3F32, 2);
+		gs_quat *q = ecs_term(&it, EgQuaternionF32, 3);
+		for (int i = 0; i < it.count; i ++)
+		{
+
+			gs_platform_t* platform = gs_subsystem(platform);
+			gs_vec3 dp;
+			const float mod = gs_platform_key_down(GS_KEYCODE_LEFT_SHIFT) ? 2.f : 1.f;
+			dp.x = gs_platform_key_down(GS_KEYCODE_LEFT) - gs_platform_key_down(GS_KEYCODE_RIGHT);
+			dp.y = gs_platform_key_down(GS_KEYCODE_UP) - gs_platform_key_down(GS_KEYCODE_DOWN);
+			dp.z = gs_platform_key_down(GS_KEYCODE_Q) - gs_platform_key_down(GS_KEYCODE_E);
+			//gs_camera_offset_orientation1(cam, dp.x, dp.y, dp.z);
+
+			gs_quat x = gs_quat_angle_axis(gs_deg2rad(dp.x), gs_v3(0.f, 1.f, 0.f));
+			gs_quat y = gs_quat_angle_axis(gs_deg2rad(dp.y), gs_v3(1.f, 0.f, 0.f));
+			gs_quat z = gs_quat_angle_axis(gs_deg2rad(dp.z), gs_v3(0.f, 0.f, 1.f));
+			q[i] = gs_quat_mul(q[i], y);
+			q[i] = gs_quat_mul(q[i], x);
+			q[i] = gs_quat_mul(q[i], z);
+
+			gs_vec3 vel = {0};
+			if (gs_platform_key_down(GS_KEYCODE_W))            vel = gs_quat_rotate(q[i], gs_v3( 0.0f,  0.0f, -1.0f));
+			if (gs_platform_key_down(GS_KEYCODE_S))            vel = gs_quat_rotate(q[i], gs_v3( 0.0f,  0.0f,  1.0f));
+			if (gs_platform_key_down(GS_KEYCODE_A))            vel = gs_quat_rotate(q[i], gs_v3(-1.0f,  0.0f,  0.0f));
+			if (gs_platform_key_down(GS_KEYCODE_D))            vel = gs_quat_rotate(q[i], gs_v3( 1.0f,  0.0f,  0.0f));
+			if (gs_platform_key_down(GS_KEYCODE_SPACE))        vel = gs_quat_rotate(q[i], gs_v3( 0.0f,  1.0f,  0.0f));
+			if (gs_platform_key_down(GS_KEYCODE_LEFT_CONTROL)) vel = gs_quat_rotate(q[i], gs_v3( 0.0f, -1.0f,  0.0f));
+
+			float cam_speed = 5.0f;
+			p[i] = gs_vec3_add(p[i], gs_vec3_scale(gs_vec3_norm(vel), dt * cam_speed * mod));
+		}
+	}
+}
+
