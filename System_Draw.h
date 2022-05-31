@@ -2,6 +2,7 @@
 #include "eg_gunslinger.h"
 #include "eg_geometry.h"
 #include "eg_quantity.h"
+#include "eg_camera.h"
 
 #include <gunslinger/gs.h>
 #include <gunslinger/util/gs_idraw.h>
@@ -12,10 +13,11 @@ static void System_Draw3D_Box(ecs_world_t * world, ecs_query_t *query, gs_immedi
 	ecs_iter_t it = ecs_query_iter(world, query);
 	while (ecs_query_next(&it))
 	{
-		EgDraw *draw = ecs_term(&it, EgDraw, 1);
-		EgPosition3F32 *position = ecs_term(&it, EgPosition3F32, 2);
-		EgBoxF32 *box = ecs_term(&it, EgBoxF32, 3);
-		EgColor *color = ecs_term(&it, EgColor, 4);
+		EgScene *scene = ecs_term(&it, EgScene, 1); //Parent
+		EgDraw *draw = ecs_term(&it, EgDraw, 2);
+		EgPosition3F32 *position = ecs_term(&it, EgPosition3F32, 3);
+		EgBoxF32 *box = ecs_term(&it, EgBoxF32, 4);
+		EgColor *color = ecs_term(&it, EgColor, 5);
 		for (int i = 0; i < it.count; i ++)
 		{
 			gs_graphics_primitive_type t = draw[i].kind;
@@ -45,10 +47,11 @@ static void System_Draw3D_Box1(ecs_world_t * world, ecs_query_t *query, gs_immed
 	ecs_iter_t it = ecs_query_iter(world, query);
 	while (ecs_query_next(&it))
 	{
-		//EgDraw1 *draw = ecs_term(&it, EgDraw1, 1);
-		EgPosition3F32 *position = ecs_term(&it, EgPosition3F32, 2);
-		EgBoxF32 *box = ecs_term(&it, EgBoxF32, 3);
-		EgColor *color = ecs_term(&it, EgColor, 4);
+		//EgScene *scene = ecs_term(&it, EgScene, 1);
+		//EgDraw1 *draw = ecs_term(&it, EgDraw1, 2);
+		EgPosition3F32 *position = ecs_term(&it, EgPosition3F32, 3);
+		EgBoxF32 *box = ecs_term(&it, EgBoxF32, 4);
+		EgColor *color = ecs_term(&it, EgColor, 5);
 		for (int i = 0; i < it.count; i ++)
 		{
 			gsi_box(gsi,
@@ -66,7 +69,6 @@ static void System_Draw3D_Box1(ecs_world_t * world, ecs_query_t *query, gs_immed
 		}
 	}
 }
-
 
 
 static void System_Draw2D_Rect(ecs_world_t * world, ecs_query_t *query, gs_immediate_draw_t * gsi)

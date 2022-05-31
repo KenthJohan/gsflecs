@@ -1,7 +1,10 @@
+// https://www.flecs.dev/explorer/
+
 #include "flecs.h"
 #include "eg_gunslinger.h"
 #include "eg_geometry.h"
 #include "eg_quantity.h"
+#include "eg_camera.h"
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -18,14 +21,17 @@ static void System_Init_Pillars(ecs_iter_t *it)
 	PillarSpawner *p = ecs_term(it, PillarSpawner, 1);
 	for (int i = 0; i < it->count; i ++)
 	{
+		ecs_entity_t scene = ecs_get_object(it->world, it->entities[i], EcsChildOf, 0);
 		for (int j = 0; j < p[i].amount; ++j)
 		{
-			ecs_entity_t e = ecs_new(it->world, 0);
+			ecs_entity_t e = ecs_new_w_pair(it->world, EcsChildOf, scene);
 			float h = rand_range(1.0f, 12.0f);
 			float hy = h * 0.5f;
 			float hx = 2.f;
 			float hz = 2.f;
-			ecs_set(it->world, e, EgPosition3F32, {rand_range(-15, 15), hy, rand_range(-15, 15)});
+			float x = rand_range(-15, 15);
+			float y = rand_range(-15, 15);
+			ecs_set(it->world, e, EgPosition3F32, {x, hy, y});
 			ecs_set(it->world, e, EgBoxF32, {hx, h, hz});
 			ecs_add(it->world, e, EgColor);
 			ecs_add(it->world, e, EgDraw1);
@@ -49,15 +55,26 @@ int main(int argc, char *argv[])
 	ECS_IMPORT(world, EgGunslinger);
 	ECS_IMPORT(world, EgQuantity);
 	ECS_IMPORT(world, EgGeometry);
+	ECS_IMPORT(world, EgCamera);
 
 	ECS_COMPONENT(world, PillarSpawner);
 	ECS_TRIGGER(world, System_Init_Pillars, EcsOnSet, PillarSpawner);
 
+
+	ecs_entity_t camera = ecs_new(world, 0);
+	ecs_set(world, camera, EgPosition3F32, {-16.0f, 2.5f, 0.0f});
+
+	ecs_entity_t scene = ecs_new(world, 0);
+	ecs_set(world, scene, EgScene, {NULL, camera});
+
+
+
+
 	{
-		ecs_entity_t e1 = ecs_new(world, 0);
-		ecs_entity_t e2 = ecs_new(world, 0);
-		ecs_entity_t e3 = ecs_new(world, 0);
-		ecs_entity_t e4 = ecs_new(world, 0);
+		ecs_entity_t e1 = ecs_new_w_pair(world, EcsChildOf, scene);
+		ecs_entity_t e2 = ecs_new_w_pair(world, EcsChildOf, scene);
+		ecs_entity_t e3 = ecs_new_w_pair(world, EcsChildOf, scene);
+		ecs_entity_t e4 = ecs_new_w_pair(world, EcsChildOf, scene);
 
 
 		ecs_set_name(world, e1, "Wall_1");
@@ -116,9 +133,15 @@ int main(int argc, char *argv[])
 	}
 
 
+
+
+
 	{
 		int n = 5;
-		const ecs_entity_t *e = ecs_bulk_new(world, PillarSpawner, n);
+		const ecs_entity_t *e = ecs_bulk_init(world, &(ecs_bulk_desc_t) {
+		.count = n,
+		.ids = {ecs_pair(EcsChildOf, scene)}
+		});
 		for(int i = 0; i < n; ++i)
 		{
 			char buf[128];

@@ -9,12 +9,6 @@ typedef struct
 	ecs_bool_t should_destroy;
 } EgWindow;
 
-typedef struct
-{
-	ecs_f32_t position;
-} EgCamera;
-
-
 
 typedef struct
 {

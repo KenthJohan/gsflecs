@@ -11,6 +11,7 @@
 #include "eg_gunslinger.h"
 #include "eg_geometry.h"
 #include "eg_quantity.h"
+#include "eg_camera.h"
 
 
 
@@ -104,7 +105,6 @@ static void app_update()
 	gs_command_buffer_t* cb = &app->cb;
 	gs_immediate_draw_t* gsi = &app->gsi;
 	gs_camera_t* cam = &app->cam;
-	gs_camera_t cam2 = *cam;
 
 	const gs_vec2 fbs = gs_platform_framebuffer_sizev(gs_platform_main_window());
 	if (gs_platform_key_pressed(GS_KEYCODE_ESC)) gs_quit();
@@ -130,14 +130,12 @@ static void app_update()
 
 
 	// Draw 3D
+	gsi_defaults(gsi);
 	gsi_camera(gsi, cam, fbs.x, fbs.y);
 	gsi_depth_enabled(gsi, true);
 	gsi_face_cull_enabled(gsi, true);
-	System_Draw3D_Box(world, g_app.query_draw3d_box, gsi);
-
-	cam2.transform.position = gs_v3(4.f, 2.f, 4.f);
-	//gsi_camera(gsi, &cam2, fbs.x, fbs.y);
 	System_Draw3D_Box1(world, g_app.query_draw3d_box1, gsi);
+	System_Draw3D_Box(world, g_app.query_draw3d_box, gsi);
 
 
 	// Draw 2D
@@ -184,6 +182,7 @@ void EgGunslingerImport(ecs_world_t *world)
 	ECS_MODULE(world, EgGunslinger);
 	ECS_IMPORT(world, EgQuantity);
 	ECS_IMPORT(world, EgGeometry);
+	ECS_IMPORT(world, EgCamera);
 
 	ECS_COMPONENT_DEFINE(world, EgWindow);
 	ECS_COMPONENT_DEFINE(world, EgDraw);
@@ -200,16 +199,35 @@ void EgGunslingerImport(ecs_world_t *world)
 	}
 	});
 
-
 	g_app.query_draw3d_box = ecs_query_init(world, &(ecs_query_desc_t) {
-	.filter.expr = "EgDraw, EgPosition3F32, EgBoxF32, EgColor",
-	.filter.instanced = true
+	.filter.terms = {
+	{ .id = ecs_id(EgScene), .inout = EcsIn, .subj.set.mask = EcsParent},
+	{ .id = ecs_id(EgDraw), .inout = EcsIn },
+	{ .id = ecs_id(EgPosition3F32), .inout = EcsIn },
+	{ .id = ecs_id(EgBoxF32), .inout = EcsIn },
+	{ .id = ecs_id(EgColor), .inout = EcsIn },
+	}
 	});
 
+
+	g_app.query_draw3d_box1 = ecs_query_init(world, &(ecs_query_desc_t) {
+	.filter.terms = {
+	{ .id = ecs_id(EgScene), .inout = EcsIn, .subj.set.mask = EcsParent},
+	{ .id = ecs_id(EgDraw1), .inout = EcsIn },
+	{ .id = ecs_id(EgPosition3F32), .inout = EcsIn },
+	{ .id = ecs_id(EgBoxF32), .inout = EcsIn },
+	{ .id = ecs_id(EgColor), .inout = EcsIn },
+	}
+	});
+
+	/*
 	g_app.query_draw3d_box1 = ecs_query_init(world, &(ecs_query_desc_t) {
 	.filter.expr = "EgDraw1, EgPosition3F32, EgBoxF32, EgColor",
 	.filter.instanced = true
 	});
+	*/
+
+
 
 	g_app.query_draw2d_rect = ecs_query_init(world, &(ecs_query_desc_t) {
 	.filter.expr = "EgDraw, EgPosition2F32, EgRectangleF32, EgColor",

@@ -22,6 +22,7 @@ SOURCES += ../../flecs.c
 SOURCES += ../../eg_gunslinger.c
 SOURCES += ../../eg_quantity.c
 SOURCES += ../../eg_geometry.c
+SOURCES += ../../eg_camera.c
 
 
 
