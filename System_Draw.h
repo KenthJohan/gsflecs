@@ -113,26 +113,28 @@ static void System_Draw2D_Text(ecs_world_t * world, ecs_query_t *query, gs_immed
 
 
 
-/*
-static void System_Draw_Scene(ecs_world_t * world, ecs_query_t *query, gs_immediate_draw_t * gsi, ecs_query_t *query_draw3d_box1, ecs_query_t *query_draw3d_box)
+
+static void System_Draw_Scene(ecs_world_t * world, ecs_query_t *query, gs_immediate_draw_t * gsi, gs_camera_t* cam)
 {
 	const gs_vec2 fbs = gs_platform_framebuffer_sizev(gs_platform_main_window());
 	ecs_iter_t it = ecs_query_iter(world, query);
 	while (ecs_query_next(&it))
 	{
-		EgScene *scene = ecs_term(&it, EgScene, 1);
+		EgScene *s = ecs_term(&it, EgScene, 1);
 		for (int i = 0; i < it.count; i ++)
 		{
 			gsi_defaults(gsi);
-			gsi_camera(gsi, cam, fbs.x, fbs.y);
-			gsi_depth_enabled(gsi, true);
-			gsi_face_cull_enabled(gsi, true);
-			System_Draw3D_Box1(world, query_draw3d_box1, gsi);
-			System_Draw3D_Box(world, query_draw3d_box, gsi);
+			//if (ecs_has(it.world, s[i].camera, EgPosition3F32))
+			{
+				gsi_camera(gsi, cam, fbs.x, fbs.y);
+			};
+			gsi_depth_enabled(gsi, s[i].enabled_depth);
+			gsi_face_cull_enabled(gsi, s[i].enabled_facecull);
+			System_Draw3D_Box1(world, s[i].query, gsi);
 		}
 	}
 }
-*/
+
 
 
 

@@ -25,7 +25,10 @@ void EgCameraImport(ecs_world_t *world)
 	.entity.entity = ecs_id(EgScene),
 	.members = {
 	{ .name = "a", .type = ecs_id(ecs_string_t) },
-	{ .name = "camera", .type = ecs_id(ecs_entity_t) }
+	{ .name = "camera", .type = ecs_id(ecs_entity_t) },
+	{ .name = "enabled_depth", .type = ecs_id(ecs_bool_t) },
+	{ .name = "enabled_facecull", .type = ecs_id(ecs_bool_t) },
+	{ .name = "query", .type = ecs_id(ecs_uptr_t) }
 	}
 	});
 

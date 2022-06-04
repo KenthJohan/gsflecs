@@ -50,6 +50,9 @@ int main(int argc, char *argv[])
 	ecs_log_set_level(0);
 
 	ecs_world_t *world = ecs_init();
+	ECS_IMPORT(world, FlecsMonitor);
+	ECS_IMPORT(world, FlecsUnits);
+
 	ecs_singleton_set(world, EcsRest, {0});
 
 	ECS_IMPORT(world, EgGunslinger);
@@ -64,17 +67,21 @@ int main(int argc, char *argv[])
 	ecs_entity_t camera = ecs_new(world, 0);
 	ecs_set(world, camera, EgPosition3F32, {-16.0f, 2.5f, 0.0f});
 
-	ecs_entity_t scene = ecs_new(world, 0);
-	ecs_set(world, scene, EgScene, {NULL, camera});
+	ecs_entity_t scene1 = ecs_new(world, 0);
+	ecs_entity_t scene2 = ecs_new(world, 0);
+	ecs_set(world, scene1, EgScene, {NULL, camera, true, true, NULL});
+	ecs_set(world, scene2, EgScene, {NULL, camera, true, true, NULL});
+	ecs_set_name(world, scene1, "EgScene_1");
+	ecs_set_name(world, scene2, "EgScene_2");
 
 
 
 
 	{
-		ecs_entity_t e1 = ecs_new_w_pair(world, EcsChildOf, scene);
-		ecs_entity_t e2 = ecs_new_w_pair(world, EcsChildOf, scene);
-		ecs_entity_t e3 = ecs_new_w_pair(world, EcsChildOf, scene);
-		ecs_entity_t e4 = ecs_new_w_pair(world, EcsChildOf, scene);
+		ecs_entity_t e1 = ecs_new_w_pair(world, EcsChildOf, scene1);
+		ecs_entity_t e2 = ecs_new_w_pair(world, EcsChildOf, scene1);
+		ecs_entity_t e3 = ecs_new_w_pair(world, EcsChildOf, scene1);
+		ecs_entity_t e4 = ecs_new_w_pair(world, EcsChildOf, scene1);
 
 
 		ecs_set_name(world, e1, "Wall_1");
@@ -98,6 +105,39 @@ int main(int argc, char *argv[])
 		ecs_set(world, e3, EgPosition3F32, {0.0f, 2.5f, 16.0f});
 		ecs_set(world, e4, EgPosition3F32, {0.f, -0.1f * 0.5f, 0.f});
 	}
+
+
+	{
+		ecs_entity_t e1 = ecs_new_w_pair(world, EcsChildOf, scene2);
+		ecs_entity_t e2 = ecs_new_w_pair(world, EcsChildOf, scene2);
+		ecs_entity_t e3 = ecs_new_w_pair(world, EcsChildOf, scene2);
+		ecs_entity_t e4 = ecs_new_w_pair(world, EcsChildOf, scene2);
+
+
+		ecs_set_name(world, e1, "Wall2_1");
+		ecs_set_name(world, e2, "Wall2_2");
+		ecs_set_name(world, e3, "Wall2_3");
+		ecs_set_name(world, e4, "Wall2_4");
+		ecs_set(world, e1, EgDraw1, {2});
+		ecs_set(world, e2, EgDraw, {2});
+		ecs_set(world, e3, EgDraw, {2});
+		ecs_set(world, e4, EgDraw, {2});
+		ecs_set(world, e1, EgColor, {20, 50, 220, 255});
+		ecs_set(world, e2, EgColor, {20, 200, 220, 255});
+		ecs_set(world, e3, EgColor, {150, 200, 20, 255});
+		ecs_set(world, e4, EgColor, {100, 100, 100, 255});
+		ecs_set(world, e1, EgBoxF32, {1.0f, 5.0f, 32.0f});
+		ecs_set(world, e2, EgBoxF32, {1.0f, 5.0f, 32.0f});
+		ecs_set(world, e3, EgBoxF32, {32.0f, 5.0f, 1.0f});
+		ecs_set(world, e4, EgBoxF32, {32.f, 0.1f, 32.f});
+		ecs_set(world, e1, EgPosition3F32, {-16.0f, 2.5f, 0.0f});
+		ecs_set(world, e2, EgPosition3F32, {16.0f, 2.5f, 0.0f});
+		ecs_set(world, e3, EgPosition3F32, {0.0f, 2.5f, 16.0f});
+		ecs_set(world, e4, EgPosition3F32, {0.f, -0.1f * 0.5f, 0.f});
+	}
+
+
+
 
 	{
 		ecs_entity_t e1 = ecs_new(world, 0);
@@ -140,7 +180,7 @@ int main(int argc, char *argv[])
 		int n = 5;
 		const ecs_entity_t *e = ecs_bulk_init(world, &(ecs_bulk_desc_t) {
 		.count = n,
-		.ids = {ecs_pair(EcsChildOf, scene)}
+		.ids = {ecs_pair(EcsChildOf, scene1)}
 		});
 		for(int i = 0; i < n; ++i)
 		{

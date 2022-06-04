@@ -55,6 +55,7 @@ typedef struct
 	ecs_query_t * query_draw2d_rect;
 	ecs_query_t * query_draw2d_text;
 	ecs_query_t * query_camera3d_controller;
+	ecs_query_t * query_scene;
 } app_t;
 app_t g_app = {0};
 
@@ -134,6 +135,8 @@ static void app_update()
 	System_Camera3D_Controller(world, g_app.query_camera3d_controller, platform->time.delta);
 
 
+	System_Draw_Scene(world, g_app.query_scene, gsi, cam);
+	/*
 	// Draw 3D
 	gsi_defaults(gsi);
 	gsi_camera(gsi, cam, fbs.x, fbs.y);
@@ -148,6 +151,10 @@ static void app_update()
 	gsi_camera2D(gsi, fbs.x, fbs.y);
 	System_Draw2D_Rect(world, g_app.query_draw2d_rect, gsi);
 	System_Draw2D_Text(world, g_app.query_draw2d_text, gsi);
+	*/
+
+
+
 	gsi_renderpass_submit(gsi, cb, fbs.x, fbs.y, GS_COLOR_WHITE);
 
 
@@ -178,7 +185,22 @@ static void app_update()
 
 
 
-
+static void Trigger_Init_EgScene(ecs_iter_t *it)
+{
+	EgScene *s = ecs_term(it, EgScene, 1);
+	for (int i = 0; i < it->count; i ++)
+	{
+		s[i].query = ecs_query_init(it->world, &(ecs_query_desc_t) {
+		.filter.terms = {
+		{ .id = ecs_pair(EcsChildOf, it->entities[i]), .inout = EcsIn},
+		{ .id = ecs_id(EgDraw1), .inout = EcsIn },
+		{ .id = ecs_id(EgPosition3F32), .inout = EcsIn },
+		{ .id = ecs_id(EgBoxF32), .inout = EcsIn },
+		{ .id = ecs_id(EgColor), .inout = EcsIn },
+		}
+		});
+	}
+}
 
 
 
@@ -195,6 +217,15 @@ void EgGunslingerImport(ecs_world_t *world)
 
 	ecs_set_name_prefix(world, "Eg");
 
+
+	ecs_trigger_init(world, &(ecs_trigger_desc_t) {
+	.term = { .id = ecs_id(EgScene), .inout = EcsInOut },
+	.events = {EcsOnSet},
+	.callback = Trigger_Init_EgScene
+	});
+
+
+
 	ecs_struct_init(world, &(ecs_struct_desc_t) {
 	.entity.entity = ecs_id(EgWindow),
 	.members = {
@@ -204,6 +235,7 @@ void EgGunslingerImport(ecs_world_t *world)
 	}
 	});
 
+	/*
 	g_app.query_draw3d_box = ecs_query_init(world, &(ecs_query_desc_t) {
 	.filter.terms = {
 	{ .id = ecs_id(EgScene), .inout = EcsIn, .subj.set.mask = EcsParent},
@@ -225,7 +257,6 @@ void EgGunslingerImport(ecs_world_t *world)
 	}
 	});
 
-	/*
 	g_app.query_draw3d_box1 = ecs_query_init(world, &(ecs_query_desc_t) {
 	.filter.expr = "EgDraw1, EgPosition3F32, EgBoxF32, EgColor",
 	.filter.instanced = true
@@ -249,6 +280,12 @@ void EgGunslingerImport(ecs_world_t *world)
 	{ .id = ecs_id(EgCamera3D), .inout = EcsIn },
 	{ .id = ecs_id(EgPosition3F32), .inout = EcsInOut },
 	{ .id = ecs_id(EgQuaternionF32), .inout = EcsInOut },
+	}
+	});
+
+	g_app.query_scene = ecs_query_init(world, &(ecs_query_desc_t) {
+	.filter.terms = {
+	{ .id = ecs_id(EgScene), .inout = EcsInOut },
 	}
 	});
 

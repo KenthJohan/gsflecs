@@ -96,7 +96,8 @@
 #define FLECS_PLECS         /* ECS data definition format */
 #define FLECS_RULES         /* Constraint solver for advanced queries */
 #define FLECS_SNAPSHOT      /* Snapshot & restore ECS data */
-#define FLECS_STATS         /* Keep track of runtime statistics */
+#define FLECS_STATS         /* Access runtime statistics */
+#define FLECS_MONITOR       /* Track runtime statistics periodically */
 #define FLECS_SYSTEM        /* System support */
 #define FLECS_PIPELINE      /* Pipeline support */
 #define FLECS_TIMER         /* Timer support */
@@ -172,6 +173,7 @@ extern "C" {
 #define EcsIdAcyclic                   (1u << 8)
 #define EcsIdTag                       (1u << 9)
 #define EcsIdWith                      (1u << 10)
+#define EcsIdUnion                     (1u << 11)
 
 #define EcsIdHasOnAdd                  (1u << 15) /* Same values as table flags */
 #define EcsIdHasOnRemove               (1u << 16) 
@@ -232,7 +234,7 @@ extern "C" {
 #define EcsTableHasDtors               (1u << 9u)
 #define EcsTableHasCopy                (1u << 10u)
 #define EcsTableHasMove                (1u << 11u)
-#define EcsTableHasSwitch              (1u << 12u)
+#define EcsTableHasUnion              (1u << 12u)
 #define EcsTableHasDisabled            (1u << 13u)
 #define EcsTableHasOverrides           (1u << 14u)
 
@@ -243,8 +245,8 @@ extern "C" {
 
 /* Composite table flags */
 #define EcsTableHasLifecycle        (EcsTableHasCtors | EcsTableHasDtors)
-#define EcsTableIsComplex           (EcsTableHasLifecycle | EcsTableHasSwitch | EcsTableHasDisabled)
-#define EcsTableHasAddActions       (EcsTableHasIsA | EcsTableHasSwitch | EcsTableHasCtors | EcsTableHasOnAdd | EcsTableHasOnSet)
+#define EcsTableIsComplex           (EcsTableHasLifecycle | EcsTableHasUnion | EcsTableHasDisabled)
+#define EcsTableHasAddActions       (EcsTableHasIsA | EcsTableHasUnion | EcsTableHasCtors | EcsTableHasOnAdd | EcsTableHasOnSet)
 #define EcsTableHasRemoveActions    (EcsTableHasIsA | EcsTableHasDtors | EcsTableHasOnRemove | EcsTableHasUnSet)
 
 
@@ -499,7 +501,6 @@ typedef int32_t ecs_size_t;
 #define ecs_entity_t_comb(lo, hi) ((ECS_CAST(uint64_t, hi) << 32) + ECS_CAST(uint32_t, lo))
 
 #define ecs_pair(pred, obj) (ECS_PAIR | ecs_entity_t_comb(obj, pred))
-#define ecs_case(pred, obj) (ECS_CASE | ecs_entity_t_comb(obj, pred))
 
 /* Get object from pair with the correct (current) generation count */
 #define ecs_pair_first(world, pair) ecs_get_alive(world, ECS_PAIR_FIRST(pair))
@@ -1158,26 +1159,48 @@ extern "C" {
 typedef uint64_t ecs_map_key_t;
 
 /* Map type */
+typedef struct ecs_bucket_entry_t {
+    struct ecs_bucket_entry_t *next;
+    ecs_map_key_t key;
+    /* payload right after key. */
+} ecs_bucket_entry_t;
+
+typedef struct ecs_block_allocator_block_t {
+    void *memory;
+    struct ecs_block_allocator_block_t *next;
+} ecs_block_allocator_block_t;
+
+typedef struct ecs_block_allocator_chunk_header_t {
+    struct ecs_block_allocator_chunk_header_t *next;
+} ecs_block_allocator_chunk_header_t;
+
+typedef struct ecs_block_allocator_t {
+    ecs_block_allocator_chunk_header_t *head;
+    ecs_block_allocator_block_t *block_head;
+    ecs_block_allocator_block_t *block_tail;
+    int32_t chunk_size;
+    int32_t chunks_per_block;
+    int32_t block_size;
+} ecs_block_allocator_t;
+
 typedef struct ecs_bucket_t {
-    ecs_map_key_t *keys;    /* Array with keys */
-    void *payload;          /* Payload array */
-    int32_t count;          /* Number of elements in bucket */
+    ecs_bucket_entry_t *first;
 } ecs_bucket_t;
 
 typedef struct ecs_map_t {
     ecs_bucket_t *buckets;
+    ecs_bucket_t *buckets_end;
     int16_t elem_size;
     uint8_t bucket_shift;
     int32_t bucket_count;
     int32_t count;
+    ecs_block_allocator_t allocator;
 } ecs_map_t;
 
 typedef struct ecs_map_iter_t {
     const ecs_map_t *map;
-    struct ecs_bucket_t *bucket;
-    int32_t bucket_index;
-    int32_t element_index;
-    void *payload;
+    ecs_bucket_t *bucket;
+    ecs_bucket_entry_t *entry;
 } ecs_map_iter_t;
 
 #define ECS_MAP_INIT(T) { .elem_size = ECS_SIZEOF(T) }
@@ -2443,6 +2466,7 @@ struct ecs_trigger_t {
 
     uint64_t id;                /* Internal id */
     int32_t *last_event_id;     /* Optional pointer to observer last_event_id */
+    ecs_id_t register_id;       /* Id with with trigger is registered */
 };
 
 /* An observer reacts to events matching a filter */
@@ -2863,8 +2887,10 @@ void ecs_default_ctor(
 #else
 #define ECS_OFFSET(o, offset) (void*)(((uintptr_t)(o)) + ((uintptr_t)(offset)))
 #endif
+#define ECS_OFFSET_T(o, T) ECS_OFFSET(o, ECS_SIZEOF(T))
 
 #define ECS_ELEM(ptr, size, index) ECS_OFFSET(ptr, (size) * (index))
+#define ECS_ELEM_T(o, T, index) ECS_ELEM(o, ECS_SIZEOF(T), index)
 
 /** Enable/disable bitsets */
 #define ECS_BIT_SET(flags, bit) (flags) |= (bit)
@@ -3825,12 +3851,6 @@ extern "C" {
 /** Role bit added to roles to differentiate between roles and generations */
 #define ECS_ROLE (1ull << 63)
 
-/** Cases are used to switch between mutually exclusive components */
-FLECS_API extern const ecs_id_t ECS_CASE;
-
-/** Switches allow for fast switching between mutually exclusive components */
-FLECS_API extern const ecs_id_t ECS_SWITCH;
-
 /** The PAIR role indicates that the entity is a pair identifier. */
 FLECS_API extern const ecs_id_t ECS_PAIR;
 
@@ -3958,6 +3978,11 @@ FLECS_API extern const ecs_entity_t EcsOneOf;
 /* Can be added to relation to indicate that it should never hold data, even
  * when it or the relation object is a component. */
 FLECS_API extern const ecs_entity_t EcsTag;
+
+/* Tag to indicate that relation is stored as union. Union relations enable
+ * changing the target of a union without switching tables. Union relationships
+ * are also marked as exclusive. */
+FLECS_API extern const ecs_entity_t EcsUnion;
 
 /* Tag to indicate name identifier */
 FLECS_API extern const ecs_entity_t EcsName;
@@ -4877,21 +4902,6 @@ void* ecs_ref_get_id(
     const ecs_world_t *world,
     ecs_ref_t *ref,
     ecs_id_t id);
-
-/** Get case for switch.
- * This operation gets the current case for the specified switch. If the current
- * switch is not set for the entity, the operation will return 0.
- *
- * @param world The world.
- * @param e The entity.
- * @param sw The switch for which to obtain the case.
- * @return The current case for the specified switch. 
- */
-FLECS_API
-ecs_entity_t ecs_get_case(
-    const ecs_world_t *world,
-    ecs_entity_t e,
-    ecs_entity_t sw);
 
 /** @} */
 
@@ -6305,6 +6315,44 @@ FLECS_API
 bool ecs_query_orphaned(
     ecs_query_t *query);
 
+/** Convert query to string.
+ *
+ * @param query The query.
+ * @return The query string.
+ */
+FLECS_API
+char* ecs_query_str(
+    const ecs_query_t *query);
+
+/** Returns number of tables query matched with.
+ *
+ * @param query The query.
+ * @return The number of matched tables.
+ */
+FLECS_API
+int32_t ecs_query_table_count(
+    const ecs_query_t *query);
+
+/** Returns number of empty tables query matched with.
+ *
+ * @param query The query.
+ * @return The number of matched empty tables.
+ */
+FLECS_API
+int32_t ecs_query_empty_table_count(
+    const ecs_query_t *query);
+
+/** Returns number of entities query matched with.
+ * This operation iterates all non-empty tables in the query cache to find the
+ * total number of entities.
+ *
+ * @param query The query.
+ * @return The number of matched entities.
+ */
+FLECS_API
+int32_t ecs_query_entity_count(
+    const ecs_query_t *query);
+
 /** @} */
 
 
@@ -6555,7 +6603,7 @@ void ecs_iter_fini(
  * @return True if iterator has more results, false if not.
  */
 FLECS_API
-bool ecs_iter_count(
+int32_t ecs_iter_count(
     ecs_iter_t *it);
 
 /** Test if iterator is true.
@@ -7062,6 +7110,28 @@ bool ecs_is_deferred(
  */
 FLECS_API
 bool ecs_defer_end(
+    ecs_world_t *world);
+
+/** Suspend deferring but do not flush queue.
+ * This operation can be used to do an undeferred operation while not flushing
+ * the operations in the queue.
+ * 
+ * An application should invoke ecs_defer_resume before ecs_defer_end is called.
+ * The operation may only be called when deferring is enabled.
+ * 
+ * @param world The world.
+ */
+FLECS_API
+void ecs_defer_suspend(
+    ecs_world_t *world);
+
+/** Resume deferring.
+ * See ecs_defer_suspend.
+ * 
+ * @param world The world.
+ */
+FLECS_API
+void ecs_defer_resume(
     ecs_world_t *world);
 
 /** Enable/disable automerging for world or stage.
@@ -7855,11 +7925,6 @@ void* ecs_record_get_column(
     ecs_add_path_w_sep(world, entity, 0, path, ".", NULL)
 
 
-/* -- Queries -- */
-
-#define ecs_query_table_count(query) query->cache.tables.count
-#define ecs_query_empty_table_count(query) query->cache.empty_tables.count
-
 /* -- Iterators -- */
 
 #define ecs_term_id(it, index)\
@@ -8004,6 +8069,9 @@ void* ecs_record_get_column(
 #endif
 #ifdef FLECS_NO_SNAPSHOT
 #undef FLECS_SNAPSHOT
+#endif
+#ifdef FLECS_NO_MONITOR
+#undef FLECS_MONITOR
 #endif
 #ifdef FLECS_NO_STATS
 #undef FLECS_STATS
@@ -8551,6 +8619,12 @@ int ecs_log_last_error(void);
 #endif // FLECS_LOG_H
 
 
+#ifdef FLECS_MONITOR
+#define FLECS_STATS
+#define FLECS_SYSTEM
+#define FLECS_TIMER
+#endif
+
 #ifdef FLECS_APP
 #ifdef FLECS_NO_APP
 #error "FLECS_NO_APP failed: APP is required by other addons"
@@ -8588,6 +8662,7 @@ typedef struct ecs_app_desc_t {
     FLECS_FLOAT delta_time;   /* Frame time increment (0 for measured values) */
     int32_t threads;          /* Number of threads. */
     bool enable_rest;         /* Allows HTTP clients to access ECS data */
+    bool enable_monitor;      /* Periodically collect statistics */
 
     ecs_app_init_action_t init; /* If set, function is ran before starting the
                                  * main loop. */
@@ -9468,6 +9543,432 @@ void* ecs_get_system_binding_ctx(
 
 FLECS_API
 void FlecsSystemImport(
+    ecs_world_t *world);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
+
+#endif
+
+#endif
+#ifdef FLECS_STATS
+#ifdef FLECS_NO_STATS
+#error "FLECS_NO_STATS failed: STATS is required by other addons"
+#endif
+/**
+ * @file stats.h
+ * @brief Statistics addon.
+ *
+ * The statistics addon enables an application to obtain detailed metrics about
+ * the storage, systems and operations of a world.
+ */
+
+#ifdef FLECS_STATS
+
+#ifndef FLECS_STATS_H
+#define FLECS_STATS_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define ECS_STAT_WINDOW (60)
+
+/** Simple value that indicates current state */
+typedef struct ecs_gauge_t {
+    float avg[ECS_STAT_WINDOW];
+    float min[ECS_STAT_WINDOW];
+    float max[ECS_STAT_WINDOW];
+} ecs_gauge_t;
+
+/* Monotonically increasing counter */
+typedef struct ecs_counter_t {
+    ecs_gauge_t rate;                          /* Keep track of deltas too */
+    float value[ECS_STAT_WINDOW];
+} ecs_counter_t;
+
+/* Make all metrics the same size, so we can iterate over fields */
+typedef union ecs_metric_t {
+    ecs_gauge_t gauge;
+    ecs_counter_t counter;
+} ecs_metric_t;
+
+typedef struct ecs_world_stats_t {
+    int32_t first_;
+
+    ecs_metric_t entity_count;               /* Number of entities */
+    ecs_metric_t entity_not_alive_count;     /* Number of not alive (recyclable) entity ids */
+
+    /* Components and ids */
+    ecs_metric_t id_count;                   /* Number of ids (excluding wildcards) */
+    ecs_metric_t tag_id_count;               /* Number of tag ids (ids without data) */
+    ecs_metric_t component_id_count;         /* Number of components ids (ids with data) */
+    ecs_metric_t pair_id_count;              /* Number of pair ids */
+    ecs_metric_t wildcard_id_count;          /* Number of wildcard ids */
+    ecs_metric_t component_count;            /* Number of components  (non-zero sized types) */
+    ecs_metric_t id_create_count;            /* Number of times id has been created */
+    ecs_metric_t id_delete_count;            /* Number of times id has been deleted */
+
+    /* Tables */
+    ecs_metric_t table_count;                /* Number of tables */
+    ecs_metric_t empty_table_count;          /* Number of empty tables */
+    ecs_metric_t tag_table_count;            /* Number of tables with only tags */
+    ecs_metric_t trivial_table_count;        /* Number of tables with only trivial components */
+    ecs_metric_t table_record_count;         /* Number of table cache records */
+    ecs_metric_t table_storage_count;        /* Number of table storages */
+    ecs_metric_t table_create_count;         /* Number of times table has been created */
+    ecs_metric_t table_delete_count;         /* Number of times table has been deleted */
+
+    /* Queries & events */
+    ecs_metric_t query_count;                /* Number of queries */
+    ecs_metric_t trigger_count;              /* Number of triggers */
+    ecs_metric_t observer_count;             /* Number of observers */
+    ecs_metric_t system_count;               /* Number of systems */
+
+    /* Deferred operations */
+    ecs_metric_t new_count;
+    ecs_metric_t bulk_new_count;
+    ecs_metric_t delete_count;
+    ecs_metric_t clear_count;
+    ecs_metric_t add_count;
+    ecs_metric_t remove_count;
+    ecs_metric_t set_count;
+    ecs_metric_t discard_count;
+
+    /* Timing */
+    ecs_metric_t world_time_total_raw;       /* Actual time passed since simulation start (first time progress() is called) */
+    ecs_metric_t world_time_total;           /* Simulation time passed since simulation start. Takes into account time scaling */
+    ecs_metric_t frame_time_total;           /* Time spent processing a frame. Smaller than world_time_total when load is not 100% */
+    ecs_metric_t system_time_total;          /* Time spent on processing systems. */
+    ecs_metric_t merge_time_total;           /* Time spent on merging deferred actions. */
+    ecs_metric_t fps;                        /* Frames per second. */
+    ecs_metric_t delta_time;                 /* Delta_time. */
+    
+    /* Frame data */
+    ecs_metric_t frame_count_total;          /* Number of frames processed. */
+    ecs_metric_t merge_count_total;          /* Number of merges executed. */
+    ecs_metric_t pipeline_build_count_total; /* Number of system pipeline rebuilds (occurs when an inactive system becomes active). */
+    ecs_metric_t systems_ran_frame;          /* Number of systems ran in the last frame. */
+
+    /* OS API data */
+    ecs_metric_t alloc_count;                /* Allocs per frame */
+    ecs_metric_t realloc_count;              /* Reallocs per frame */
+    ecs_metric_t free_count;                 /* Frees per frame */
+    ecs_metric_t outstanding_alloc_count;    /* Difference between allocs & frees */
+
+    int32_t last_;
+
+    /** Current position in ringbuffer */
+    int32_t t;
+} ecs_world_stats_t;
+
+/* Statistics for a single query (use ecs_query_stats_get) */
+typedef struct ecs_query_stats_t {
+    int32_t first_;
+    ecs_metric_t matched_table_count;       /* Matched non-empty tables */    
+    ecs_metric_t matched_empty_table_count; /* Matched empty tables */
+    ecs_metric_t matched_entity_count;      /* Number of matched entities */
+    int32_t last_;
+
+    /** Current position in ringbuffer */
+    int32_t t; 
+} ecs_query_stats_t;
+
+/** Statistics for a single system (use ecs_system_stats_get) */
+typedef struct ecs_system_stats_t {
+    int32_t first_;
+    ecs_metric_t time_spent;       /* Time spent processing a system */
+    ecs_metric_t invoke_count;     /* Number of times system is invoked */
+    ecs_metric_t active;           /* Whether system is active (is matched with >0 entities) */
+    ecs_metric_t enabled;          /* Whether system is enabled */
+    int32_t last_;
+
+    bool task;                     /* Is system a task */
+
+    ecs_query_stats_t query;
+} ecs_system_stats_t;
+
+/** Statistics for all systems in a pipeline. */
+typedef struct ecs_pipeline_stats_t {
+    /** Vector with system ids of all systems in the pipeline. The systems are
+     * stored in the order they are executed. Merges are represented by a 0. */
+    ecs_vector_t *systems;
+
+    /** Map with system statistics. For each system in the systems vector, an
+     * entry in the map exists of type ecs_system_stats_t. */
+    ecs_map_t system_stats;
+
+    /** Current position in ringbuffer */
+    int32_t t;
+
+    int32_t system_count; /* Number of systems in pipeline */
+    int32_t active_system_count; /* Number of active systems in pipeline */
+    int32_t rebuild_count; /* Number of times pipeline has rebuilt */
+} ecs_pipeline_stats_t;
+
+/** Get world statistics.
+ *
+ * @param world The world.
+ * @param stats Out parameter for statistics.
+ */
+FLECS_API 
+void ecs_world_stats_get(
+    const ecs_world_t *world,
+    ecs_world_stats_t *stats);
+
+/** Reduce source measurement window into single destination measurement. */
+FLECS_API 
+void ecs_world_stats_reduce(
+    ecs_world_stats_t *dst,
+    const ecs_world_stats_t *src);
+
+/** Reduce last measurement into previous measurement, restore old value. */
+FLECS_API
+void ecs_world_stats_reduce_last(
+    ecs_world_stats_t *stats,
+    const ecs_world_stats_t *old,
+    int32_t count);
+
+/** Repeat last measurement. */
+FLECS_API
+void ecs_world_stats_repeat_last(
+    ecs_world_stats_t *stats);
+
+/** Copy last measurement from source to destination. */
+FLECS_API
+void ecs_world_stats_copy_last(
+    ecs_world_stats_t *dst,
+    const ecs_world_stats_t *src);
+
+FLECS_API 
+void ecs_world_stats_log(
+    const ecs_world_t *world,
+    const ecs_world_stats_t *stats);
+
+/** Get query statistics.
+ * Obtain statistics for the provided query.
+ *
+ * @param world The world.
+ * @param query The query.
+ * @param stats Out parameter for statistics.
+ */
+FLECS_API 
+void ecs_query_stats_get(
+    const ecs_world_t *world,
+    const ecs_query_t *query,
+    ecs_query_stats_t *stats);
+
+/** Reduce source measurement window into single destination measurement. */
+FLECS_API 
+void ecs_query_stats_reduce(
+    ecs_query_stats_t *dst,
+    const ecs_query_stats_t *src);
+
+/** Reduce last measurement into previous measurement, restore old value. */
+FLECS_API
+void ecs_query_stats_reduce_last(
+    ecs_query_stats_t *stats,
+    const ecs_query_stats_t *old,
+    int32_t count);
+
+/** Repeat last measurement. */
+FLECS_API
+void ecs_query_stats_repeat_last(
+    ecs_query_stats_t *stats);
+
+/** Copy last measurement from source to destination. */
+FLECS_API
+void ecs_query_stats_copy_last(
+    ecs_query_stats_t *dst,
+    const ecs_query_stats_t *src);
+
+#ifdef FLECS_SYSTEM
+/** Get system statistics.
+ * Obtain statistics for the provided system.
+ *
+ * @param world The world.
+ * @param system The system.
+ * @param stats Out parameter for statistics.
+ * @return true if success, false if not a system.
+ */
+FLECS_API 
+bool ecs_system_stats_get(
+    const ecs_world_t *world,
+    ecs_entity_t system,
+    ecs_system_stats_t *stats);
+
+/** Reduce source measurement window into single destination measurement */
+FLECS_API 
+void ecs_system_stats_reduce(
+    ecs_system_stats_t *dst,
+    const ecs_system_stats_t *src);
+
+/** Reduce last measurement into previous measurement, restore old value. */
+FLECS_API
+void ecs_system_stats_reduce_last(
+    ecs_system_stats_t *stats,
+    const ecs_system_stats_t *old,
+    int32_t count);
+
+/** Repeat last measurement. */
+FLECS_API
+void ecs_system_stats_repeat_last(
+    ecs_system_stats_t *stats);
+
+/** Copy last measurement from source to destination. */
+FLECS_API
+void ecs_system_stats_copy_last(
+    ecs_system_stats_t *dst,
+    const ecs_system_stats_t *src);
+#endif
+
+#ifdef FLECS_PIPELINE
+/** Get pipeline statistics.
+ * Obtain statistics for the provided pipeline.
+ *
+ * @param world The world.
+ * @param pipeline The pipeline.
+ * @param stats Out parameter for statistics.
+ * @return true if success, false if not a pipeline.
+ */
+FLECS_API 
+bool ecs_pipeline_stats_get(
+    ecs_world_t *world,
+    ecs_entity_t pipeline,
+    ecs_pipeline_stats_t *stats);
+
+/** Free pipeline stats.
+ * 
+ * @param stats The stats to free.
+ */
+FLECS_API
+void ecs_pipeline_stats_fini(
+    ecs_pipeline_stats_t *stats);
+
+/** Reduce source measurement window into single destination measurement */
+FLECS_API 
+void ecs_pipeline_stats_reduce(
+    ecs_pipeline_stats_t *dst,
+    const ecs_pipeline_stats_t *src);
+
+/** Reduce last measurement into previous measurement, restore old value. */
+FLECS_API
+void ecs_pipeline_stats_reduce_last(
+    ecs_pipeline_stats_t *stats,
+    const ecs_pipeline_stats_t *old,
+    int32_t count);
+
+/** Repeat last measurement. */
+FLECS_API
+void ecs_pipeline_stats_repeat_last(
+    ecs_pipeline_stats_t *stats);
+
+/** Copy last measurement to destination.
+ * This operation copies the last measurement into the destination. It does not
+ * modify the cursor.
+ * 
+ * @param dst The metrics.
+ * @param src The metrics to copy.
+ */
+FLECS_API
+void ecs_pipeline_stats_copy_last(
+    ecs_pipeline_stats_t *dst,
+    const ecs_pipeline_stats_t *src);
+
+#endif
+
+/** Reduce all measurements from a window into a single measurement. */
+FLECS_API 
+void ecs_metric_reduce(
+    ecs_metric_t *dst,
+    const ecs_metric_t *src,
+    int32_t t_dst,
+    int32_t t_src);
+
+/** Reduce last measurement into previous measurement */
+FLECS_API
+void ecs_metric_reduce_last(
+    ecs_metric_t *m,
+    int32_t t,
+    int32_t count);
+
+/** Copy measurement */
+FLECS_API
+void ecs_metric_copy(
+    ecs_metric_t *m,
+    int32_t dst,
+    int32_t src);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
+
+#endif
+
+#endif
+#ifdef FLECS_MONITOR
+#ifdef FLECS_NO_MONITOR
+#error "FLECS_NO_MONITOR failed: MONITOR is required by other addons"
+#endif
+/**
+ * @file doc.h
+ * @brief Doc module.
+ *
+ * The monitor module automatically tracks statistics from the stats addon and
+ * stores them in components.
+ */
+
+#ifdef FLECS_MONITOR
+
+#ifndef FLECS_MONITOR_H
+#define FLECS_MONITOR_H
+
+#ifndef FLECS_MODULE
+#define FLECS_MODULE
+#endif
+
+#ifndef FLECS_STATS
+#define FLECS_STATS
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+FLECS_API extern ECS_COMPONENT_DECLARE(FlecsMonitor);
+
+FLECS_API extern ECS_COMPONENT_DECLARE(EcsWorldStats);
+FLECS_API extern ECS_COMPONENT_DECLARE(EcsPipelineStats);
+
+FLECS_API extern ECS_DECLARE(EcsPeriod1s);
+FLECS_API extern ECS_DECLARE(EcsPeriod1m);
+FLECS_API extern ECS_DECLARE(EcsPeriod1h);
+FLECS_API extern ECS_DECLARE(EcsPeriod1d);
+FLECS_API extern ECS_DECLARE(EcsPeriod1w);
+
+typedef struct {
+    FLECS_FLOAT elapsed;
+    int32_t reduce_count;
+} EcsStatsHeader;
+
+typedef struct {
+    EcsStatsHeader hdr; 
+    ecs_world_stats_t stats;
+} EcsWorldStats;
+
+typedef struct {
+    EcsStatsHeader hdr;
+    ecs_pipeline_stats_t stats;
+} EcsPipelineStats;
+
+/* Module import */
+FLECS_API
+void FlecsMonitorImport(
     ecs_world_t *world);
 
 #ifdef __cplusplus
@@ -11552,237 +12053,6 @@ void ecs_snapshot_free(
 #endif
 
 #endif
-#ifdef FLECS_STATS
-#ifdef FLECS_NO_STATS
-#error "FLECS_NO_STATS failed: STATS is required by other addons"
-#endif
-/**
- * @file stats.h
- * @brief Statistics addon.
- *
- * The statistics addon enables an application to obtain detailed metrics about
- * the storage, systems and operations of a world.
- */
-
-#ifdef FLECS_STATS
-
-#ifndef FLECS_STATS_H
-#define FLECS_STATS_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#define ECS_STAT_WINDOW (60)
-
-/** Simple value that indicates current state */
-typedef struct ecs_gauge_t {
-    float avg[ECS_STAT_WINDOW];
-    float min[ECS_STAT_WINDOW];
-    float max[ECS_STAT_WINDOW];
-} ecs_gauge_t;
-
-/* Monotonically increasing counter */
-typedef struct ecs_counter_t {
-    ecs_gauge_t rate;                          /* Keep track of deltas too */
-    float value[ECS_STAT_WINDOW];
-} ecs_counter_t;
-
-typedef struct ecs_world_stats_t {
-    /* Allows struct to be initialized with {0} */
-    int32_t dummy_;
-
-    ecs_gauge_t entity_count;                 /* Number of entities */
-    ecs_gauge_t entity_not_alive_count;       /* Number of not alive (recyclable) entity ids */
-
-    /* Components and ids */
-    ecs_gauge_t id_count;                     /* Number of ids (excluding wildcards) */
-    ecs_gauge_t tag_id_count;                 /* Number of tag ids (ids without data) */
-    ecs_gauge_t component_id_count;           /* Number of components ids (ids with data) */
-    ecs_gauge_t pair_id_count;                /* Number of pair ids */
-    ecs_gauge_t wildcard_id_count;            /* Number of wildcard ids */
-    ecs_gauge_t component_count;              /* Number of components  (non-zero sized types) */
-    ecs_counter_t id_create_count;            /* Number of times id has been created */
-    ecs_counter_t id_delete_count;            /* Number of times id has been deleted */
-
-    /* Tables */
-    ecs_gauge_t table_count;                  /* Number of tables */
-    ecs_gauge_t empty_table_count;            /* Number of empty tables */
-    ecs_gauge_t singleton_table_count;        /* Number of singleton tables. Singleton tables are tables with just a single entity that contains itself */
-    ecs_gauge_t tag_table_count;              /* Number of tables with only tags */
-    ecs_gauge_t trivial_table_count;          /* Number of tables with only trivial components */
-    ecs_gauge_t table_record_count;           /* Number of table cache records */
-    ecs_gauge_t table_storage_count;          /* Number of table storages */
-    ecs_counter_t table_create_count;         /* Number of times table has been created */
-    ecs_counter_t table_delete_count;         /* Number of times table has been deleted */
-
-    /* Queries & events */
-    ecs_gauge_t query_count;                  /* Number of queries */
-    ecs_gauge_t trigger_count;                /* Number of triggers */
-    ecs_gauge_t observer_count;               /* Number of observers */
-    ecs_gauge_t system_count;                 /* Number of systems */
-
-    /* Deferred operations */
-    ecs_counter_t new_count;
-    ecs_counter_t bulk_new_count;
-    ecs_counter_t delete_count;
-    ecs_counter_t clear_count;
-    ecs_counter_t add_count;
-    ecs_counter_t remove_count;
-    ecs_counter_t set_count;
-    ecs_counter_t discard_count;
-
-    /* Timing */
-    ecs_counter_t world_time_total_raw;       /* Actual time passed since simulation start (first time progress() is called) */
-    ecs_counter_t world_time_total;           /* Simulation time passed since simulation start. Takes into account time scaling */
-    ecs_counter_t frame_time_total;           /* Time spent processing a frame. Smaller than world_time_total when load is not 100% */
-    ecs_counter_t system_time_total;          /* Time spent on processing systems. */
-    ecs_counter_t merge_time_total;           /* Time spent on merging deferred actions. */
-    ecs_gauge_t fps;                          /* Frames per second. */
-    ecs_gauge_t delta_time;                   /* Delta_time. */
-    
-    /* Frame data */
-    ecs_counter_t frame_count_total;          /* Number of frames processed. */
-    ecs_counter_t merge_count_total;          /* Number of merges executed. */
-    ecs_counter_t pipeline_build_count_total; /* Number of system pipeline rebuilds (occurs when an inactive system becomes active). */
-    ecs_counter_t systems_ran_frame;          /* Number of systems ran in the last frame. */
-
-    /** Current position in ringbuffer */
-    int32_t t;
-} ecs_world_stats_t;
-
-/* Statistics for a single query (use ecs_get_query_stats) */
-typedef struct ecs_query_stats_t {
-    ecs_gauge_t matched_table_count;       /* Number of matched non-empty tables. This is the number of tables 
-                                            * iterated over when evaluating a query. */    
-
-    ecs_gauge_t matched_empty_table_count; /* Number of matched empty tables. Empty tables are not iterated over when
-                                            * evaluating a query. */
-    
-    ecs_gauge_t matched_entity_count;      /* Number of matched entities across all tables */
-
-    /** Current position in ringbuffer */
-    int32_t t; 
-} ecs_query_stats_t;
-
-/** Statistics for a single system (use ecs_get_system_stats) */
-typedef struct ecs_system_stats_t {
-    ecs_query_stats_t query_stats;
-    ecs_counter_t time_spent;       /* Time spent processing a system */
-    ecs_counter_t invoke_count;     /* Number of times system is invoked */
-    ecs_gauge_t active;             /* Whether system is active (is matched with >0 entities) */
-    ecs_gauge_t enabled;            /* Whether system is enabled */
-} ecs_system_stats_t;
-
-/** Statistics for all systems in a pipeline. */
-typedef struct ecs_pipeline_stats_t {
-    /** Vector with system ids of all systems in the pipeline. The systems are
-     * stored in the order they are executed. Merges are represented by a 0. */
-    ecs_vector_t *systems;
-
-    /** Map with system statistics. For each system in the systems vector, an
-     * entry in the map exists of type ecs_system_stats_t. */
-    ecs_map_t *system_stats;
-
-    int32_t system_count; /* Number of systems in pipeline */
-    int32_t active_system_count; /* Number of active systems in pipeline */
-    int32_t rebuild_count; /* Number of times pipeline has rebuilt */
-} ecs_pipeline_stats_t;
-
-/** Get world statistics.
- * Obtain statistics for the provided world. This operation loops several times
- * over the tables in the world, and can impact application performance.
- *
- * @param world The world.
- * @param stats Out parameter for statistics.
- */
-FLECS_API 
-void ecs_get_world_stats(
-    const ecs_world_t *world,
-    ecs_world_stats_t *stats);
-
-/** Print world statistics.
- * Print statistics obtained by ecs_get_world_statistics and in the
- * ecs_world_info_t struct.
- * 
- * @param world The world.
- * @param stats The statistics to print.
- */
-FLECS_API 
-void ecs_dump_world_stats(
-    const ecs_world_t *world,
-    const ecs_world_stats_t *stats);
-
-/** Get query statistics.
- * Obtain statistics for the provided query.
- *
- * @param world The world.
- * @param query The query.
- * @param stats Out parameter for statistics.
- */
-FLECS_API 
-void ecs_get_query_stats(
-    const ecs_world_t *world,
-    const ecs_query_t *query,
-    ecs_query_stats_t *stats);
-
-#ifdef FLECS_SYSTEM
-/** Get system statistics.
- * Obtain statistics for the provided system.
- *
- * @param world The world.
- * @param system The system.
- * @param stats Out parameter for statistics.
- * @return true if success, false if not a system.
- */
-FLECS_API 
-bool ecs_get_system_stats(
-    const ecs_world_t *world,
-    ecs_entity_t system,
-    ecs_system_stats_t *stats);
-#endif
-
-#ifdef FLECS_PIPELINE
-/** Get pipeline statistics.
- * Obtain statistics for the provided pipeline.
- *
- * @param world The world.
- * @param pipeline The pipeline.
- * @param stats Out parameter for statistics.
- * @return true if success, false if not a pipeline.
- */
-FLECS_API 
-bool ecs_get_pipeline_stats(
-    ecs_world_t *world,
-    ecs_entity_t pipeline,
-    ecs_pipeline_stats_t *stats);
-
-/** Free pipeline stats.
- * 
- * @param stats The stats to free.
- */
-FLECS_API
-void ecs_pipeline_stats_fini(
-    ecs_pipeline_stats_t *stats);
-
-#endif
-
-FLECS_API 
-void ecs_gauge_reduce(
-    ecs_gauge_t *dst,
-    int32_t t_dst,
-    ecs_gauge_t *src,
-    int32_t t_src);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif
-
-#endif
-
-#endif
 #ifdef FLECS_PARSER
 #ifdef FLECS_NO_PARSER
 #error "FLECS_NO_PARSER failed: PARSER is required by other addons"
@@ -12179,6 +12449,20 @@ ecs_entity_t ecs_import(
     ecs_module_action_t module,
     const char *module_name);
 
+/** Same as ecs_import, but with name to scope conversion.
+ * PascalCase names are automatically converted to scoped names.
+ *
+ * @param world The world.
+ * @param module The module import function.
+ * @param module_name_c The name of the module.
+ * @return The module entity.
+ */
+FLECS_API
+ecs_entity_t ecs_import_c(
+    ecs_world_t *world,
+    ecs_module_action_t module,
+    const char *module_name_c);
+
 /* Import a module from a library.
  * Similar to ecs_import, except that this operation will attempt to load the 
  * module from a dynamic library.
@@ -12212,8 +12496,8 @@ ecs_entity_t ecs_module_init(
 
 /** Define module
  */
-#define ECS_MODULE(world, id)\
-    ecs_entity_t ecs_id(id) = ecs_module_init(world, &(ecs_component_desc_t){\
+#define ECS_MODULE_DEFINE(world, id)\
+    ecs_id(id) = ecs_module_init(world, &(ecs_component_desc_t){\
         .entity = {\
             .name = #id,\
             .add = {EcsModule}\
@@ -12222,23 +12506,16 @@ ecs_entity_t ecs_module_init(
     ecs_set_scope(world, ecs_id(id));\
     (void)ecs_id(id);
 
+#define ECS_MODULE(world, id)\
+    ecs_entity_t ECS_MODULE_DEFINE(world, id)
+
 /** Wrapper around ecs_import.
  * This macro provides a convenient way to load a module with the world. It can
  * be used like this:
  *
- * ECS_IMPORT(world, FlecsSystemsPhysics, 0);
- * 
- * This macro will define entity and type handles for the component associated
- * with the module. The module component will be created as a singleton. 
- * 
- * The contents of a module component are module specific, although they
- * typically contain handles to the content of the module.
+ * ECS_IMPORT(world, FlecsSystemsPhysics);
  */
-#define ECS_IMPORT(world, id) \
-    char *FLECS__##id##_name = ecs_module_path_from_c(#id);\
-    ecs_id_t ecs_id(id) = ecs_import(world, id##Import, FLECS__##id##_name);\
-    ecs_os_free(FLECS__##id##_name);\
-    (void)ecs_id(id)
+#define ECS_IMPORT(world, id) ecs_import_c(world, id##Import, #id);
 
 #ifdef __cplusplus
 }
@@ -12493,8 +12770,6 @@ static const flecs::entity_t UnSet = EcsUnSet;
 
 /** Builtin roles */
 static const flecs::entity_t Pair = ECS_PAIR;
-static const flecs::entity_t Switch = ECS_SWITCH;
-static const flecs::entity_t Case = ECS_CASE;
 static const flecs::entity_t Override = ECS_OVERRIDE;
 
 /* Builtin entity ids */
@@ -12510,6 +12785,7 @@ static const flecs::entity_t Reflexive = EcsReflexive;
 static const flecs::entity_t Final = EcsFinal;
 static const flecs::entity_t DontInherit = EcsDontInherit;
 static const flecs::entity_t Tag = EcsTag;
+static const flecs::entity_t Union = EcsUnion;
 static const flecs::entity_t Exclusive = EcsExclusive;
 static const flecs::entity_t Acyclic = EcsAcyclic;
 static const flecs::entity_t Symmetric = EcsSymmetric;
@@ -12922,6 +13198,7 @@ struct string_view : string {
 }
 
 #include <string.h>
+#include <stdio.h>
 
 #define FLECS_ENUM_MAX(T) _::to_constant<T, 128>::value
 #define FLECS_ENUM_MAX_COUNT (FLECS_ENUM_MAX(int) + 1)
@@ -12981,6 +13258,7 @@ constexpr size_t enum_type_len() {
  * __PRETTY_FUNCTION__ contains the enumeration name, whereas if a value is
  * invalid, the string contains a number. */
 #if defined(__clang__)
+#if __clang_major__ < 13 || (defined(__APPLE__) && __clang_minor__ < 1)
 template <typename E, E C>
 constexpr bool enum_constant_is_valid() {
     return !(
@@ -12989,6 +13267,13 @@ constexpr bool enum_constant_is_valid() {
         (ECS_FUNC_NAME[ECS_FUNC_NAME_FRONT(bool, enum_constant_is_valid) +
             enum_type_len<E>() + 6 /* ', C = ' */] <= '9'));
 }
+#else
+template <typename E, E C>
+constexpr bool enum_constant_is_valid() {
+    return (ECS_FUNC_NAME[ECS_FUNC_NAME_FRONT(bool, enum_constant_is_valid) +
+        enum_type_len<E>() + 6 /* ', E C = ' */] != '(');
+}
+#endif
 #elif defined(__GNUC__)
 template <typename E, E C>
 constexpr bool enum_constant_is_valid() {
@@ -13383,16 +13668,6 @@ struct id {
         return ecs_id_is_wildcard(m_id);
     }
 
-    /* Test if id has the Switch role */
-    bool is_switch() const {
-        return (m_id & ECS_ROLE_MASK) == flecs::Switch;
-    }
-
-    /* Test if id has the Case role */
-    bool is_case() const {
-        return (m_id & ECS_ROLE_MASK) == flecs::Case;
-    }
-
     /* Test if id is entity */
     bool is_entity() const {
         return !(m_id & ECS_ROLE_MASK);
@@ -13784,9 +14059,10 @@ void init(flecs::world& world);
 #pragma once
 
 namespace flecs {
-namespace rest {
 
 using Rest = EcsRest;
+
+namespace rest {
 
 namespace _ {
 
@@ -14156,6 +14432,20 @@ units(flecs::world& world);
 }
 
 #endif
+#ifdef FLECS_MONITOR
+#pragma once
+
+namespace flecs {
+
+using WorldStats = EcsWorldStats;
+using PipelineStats = EcsPipelineStats;
+    
+struct monitor {
+    monitor(flecs::world& world);
+};
+
+}
+#endif
 #ifdef FLECS_JSON
 #pragma once
 
@@ -14204,6 +14494,11 @@ struct app_builder {
 
     app_builder& enable_rest(bool value = true) {
         m_desc.enable_rest = value;
+        return *this;
+    }
+
+    app_builder& enable_monitor(bool value = true) {
+        m_desc.enable_monitor = value;
         return *this;
     }
 
@@ -15558,6 +15853,22 @@ struct world {
         ecs_defer_end(m_world);
     }
 
+    /** Suspend deferring operations.
+     * 
+     * @see ecs_defer_suspend
+     */
+    void defer_suspend() const {
+        ecs_defer_suspend(m_world);
+    }
+
+    /** Resume deferring operations.
+     * 
+     * @see ecs_defer_suspend
+     */
+    void defer_resume() const {
+        ecs_defer_resume(m_world);
+    }
+
     /** Check if entity id exists in the world.
      * Ignores entity relation.
      * 
@@ -16528,8 +16839,7 @@ private:
 
 #ifndef FLECS_NDEBUG
         ecs_entity_t term_id = ecs_term_id(m_iter, index);
-        ecs_assert(term_id & ECS_PAIR || term_id & ECS_SWITCH || 
-            term_id & ECS_CASE ||
+        ecs_assert(term_id & ECS_PAIR ||
             term_id == _::cpp_type<T>::id(m_iter->world), 
             ECS_COLUMN_TYPE_MISMATCH, NULL);
 #endif
@@ -17127,55 +17437,6 @@ struct entity_view : public id {
         return owns(_::cpp_type<T>::id(m_world));
     }
 
-    /** Check if entity has the provided switch.
-     *
-     * @param sw The switch to check.
-     * @return True if the entity has the provided switch, false otherwise.
-     */
-    bool has_switch(const flecs::type& sw) const;
-
-    template <typename T>
-    bool has_switch() const {
-        return ecs_has_id(m_world, m_id, 
-            flecs::Switch | _::cpp_type<T>::id(m_world));
-    }
-
-    /** Check if entity has the provided case.
-     *
-     * @param sw_case The case to check.
-     * @return True if the entity has the provided case, false otherwise.
-     */
-    bool has_case(flecs::id_t sw_case) const {
-        return ecs_has_id(m_world, m_id, flecs::Case | sw_case);
-    }
-
-    template<typename T>
-    bool has_case() const {
-        return this->has_case(_::cpp_type<T>::id(m_world));
-    }
-
-    /** Get case for switch.
-     *
-     * @param sw The switch for which to obtain the case.
-     * @return The entity representing the case.
-     */
-    flecs::entity get_case(flecs::id_t sw) const;
-
-    /** Get case for switch.
-     *
-     * @tparam T The switch type for which to obtain the case.
-     * @return The entity representing the case.
-     */
-    template<typename T> 
-    flecs::entity get_case() const;
-
-    /** Get case for switch.
-     *
-     * @param sw The switch for which to obtain the case.
-     * @return The entity representing the case.
-     */
-    flecs::entity get_case(const flecs::type& sw) const;
-
     /** Test if component is enabled.
      *
      * @tparam T The component to test.
@@ -17621,104 +17882,6 @@ struct entity_builder : entity_view {
             FLECS_FWD(args)...);
 
         return to_base();  
-    }
-
-    /** Add a switch to an entity by id.
-     * The switch entity must be a type, that is it must have the EcsType
-     * component. Entities created with flecs::type are valid here.
-     *
-     * @param sw The switch entity id to add.
-     */    
-    Self& add_switch(entity_t sw) {
-        ecs_add_id(this->m_world, this->m_id, ECS_SWITCH | sw);
-        return to_base();  
-    }
-
-    /** Add a switch to an entity by C++ type.
-     * The C++ type must be associated with a switch type.
-     *
-     * @tparam T The switch to add.
-     */ 
-    template <typename T>
-    Self& add_switch() {
-        ecs_add_id(this->m_world, this->m_id, 
-            ECS_SWITCH | _::cpp_type<T>::id());
-        return to_base();  
-    }
-
-    /** Add a switch to an entity.
-     * Any instance of flecs::type can be used as a switch.
-     *
-     * @param sw The switch to add.
-     */     
-    Self& add_switch(const flecs::type& sw);
-
-    /** Remove a switch from an entity by id.
-     *
-     * @param sw The switch to remove.
-     */    
-    Self& remove_switch(entity_t sw) {
-        ecs_remove_id(this->m_world, this->m_id, ECS_SWITCH | sw);
-        return to_base();  
-    }
-    
-    /** Add a switch to an entity by C++ type.
-     * The C++ type must be associated with a switch type.
-     *
-     * @tparam T The switch to remove.
-     */ 
-    template <typename T>
-    Self& remove_switch() {
-        ecs_remove_id(this->m_world, this->m_id, 
-            ECS_SWITCH | _::cpp_type<T>::id());
-        return to_base();  
-    }
-
-    /** Remove a switch from an entity.
-     * Any instance of flecs::type can be used as a switch.
-     *
-     * @param sw The switch to remove.
-     */      
-    Self& remove_switch(const flecs::type& sw);
-
-    /** Add a switch to an entity by id.
-     * The case must belong to a switch that is already added to the entity.
-     *
-     * @param sw_case The case entity id to add.
-     */    
-    Self& add_case(entity_t sw_case) {
-        ecs_add_id(this->m_world, this->m_id, ECS_CASE | sw_case);
-        return to_base();
-    }
-
-    /** Add a switch to an entity by id.
-     * The case must belong to a switch that is already added to the entity.
-     *
-     * @tparam T The case to add.
-     */   
-    template<typename T>
-    Self& add_case() {
-        return this->add_case(_::cpp_type<T>::id());
-    }
-
-    /** Remove a case from an entity by id.
-     * The case must belong to a switch that is already added to the entity.
-     *
-     * @param sw_case The case entity id to remove.
-     */    
-    Self& remove_case(entity_t sw_case) {
-        ecs_remove_id(this->m_world, this->m_id, ECS_CASE | sw_case);
-        return to_base();  
-    }
-
-    /** Remove a switch from an entity by id.
-     * The case must belong to a switch that is already added to the entity.
-     *
-     * @tparam T The case to remove.
-     */   
-    template<typename T>
-    Self& remove_case() {
-        return this->remove_case(_::cpp_type<T>::id());
     }
 
     /** Add pair for enum constant.
@@ -20025,38 +20188,11 @@ flecs::entity ref<T>::entity() const {
 }
 
 template <typename Self>
-inline Self& entity_builder<Self>::add_switch(const flecs::type& sw) {
-    return add_switch(sw.id());
-}
-
-template <typename Self>
-inline Self& entity_builder<Self>::remove_switch(const flecs::type& sw) {
-    return remove_switch(sw.id());
-}
-
-template <typename Self>
 template <typename Func, if_t< is_callable<Func>::value > >
 inline Self& entity_builder<Self>::set(const Func& func) {
     _::entity_with_invoker<Func>::invoke_get_mut(
         this->m_world, this->m_id, func);
     return to_base();
-}
-
-inline bool entity_view::has_switch(const flecs::type& type) const {
-    return ecs_has_id(m_world, m_id, flecs::Switch | type.id());
-}
-
-inline flecs::entity entity_view::get_case(const flecs::type& sw) const {
-    return flecs::entity(m_world, ecs_get_case(m_world, m_id, sw.id()));
-}
-
-inline flecs::entity entity_view::get_case(flecs::id_t sw) const {
-    return flecs::entity(m_world, ecs_get_case(m_world, m_id, sw));
-}
-
-template <typename T>
-inline flecs::entity entity_view::get_case() const {
-    return get_case(_::cpp_type<T>::id(m_world));
 }
 
 template <typename T, if_t< is_enum<T>::value > >
@@ -20150,11 +20286,10 @@ inline void entity_view::each(const Func& func) const {
         flecs::id ent(m_world, id);
         func(ent); 
 
-        // Case is not stored in type, so handle separately
-        if ((id & ECS_ROLE_MASK) == flecs::Switch) {
-            ent = flecs::id(
-                m_world, flecs::Case | ecs_get_case(
-                        m_world, m_id, ent.second().id()));
+        // Union object is not stored in type, so handle separately
+        if (ECS_PAIR_FIRST(id) == EcsUnion) {
+            ent = flecs::id(m_world, ECS_PAIR_SECOND(id),
+                ecs_get_object(m_world, m_id, ECS_PAIR_SECOND(id), 0));
             func(ent);
         }
     }
@@ -22712,7 +22847,7 @@ namespace rest {
 namespace _ {
 
 inline void init(flecs::world& world) {
-    world.component<rest::Rest>("flecs::rest::Rest");
+    world.component<Rest>("flecs::rest::Rest");
 }
  
 } // namespace _
@@ -23112,6 +23247,19 @@ inline units::units(flecs::world& world) {
 
 }
 
+#endif
+#ifdef FLECS_MONITOR
+#pragma once
+
+namespace flecs {
+
+inline monitor::monitor(flecs::world& world) {
+    /* Import C module  */
+    FlecsMonitorImport(world);
+
+}
+
+}
 #endif
 
 
