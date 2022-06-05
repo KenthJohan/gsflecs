@@ -20,7 +20,6 @@ typedef struct
 typedef struct
 {
 	ecs_string_t a;
-	ecs_entity_t camera;
 	ecs_bool_t enabled_depth;
 	ecs_bool_t enabled_facecull;
 	ecs_query_t * query;

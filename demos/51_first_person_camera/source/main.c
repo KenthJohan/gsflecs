@@ -64,15 +64,19 @@ int main(int argc, char *argv[])
 	ECS_TRIGGER(world, System_Init_Pillars, EcsOnSet, PillarSpawner);
 
 
-	ecs_entity_t camera = ecs_new(world, 0);
-	ecs_set(world, camera, EgPosition3F32, {-16.0f, 2.5f, 0.0f});
-
 	ecs_entity_t scene1 = ecs_new(world, 0);
-	ecs_entity_t scene2 = ecs_new(world, 0);
-	ecs_set(world, scene1, EgScene, {NULL, camera, true, true, NULL});
-	ecs_set(world, scene2, EgScene, {NULL, camera, true, true, NULL});
 	ecs_set_name(world, scene1, "EgScene_1");
+	ecs_set(world, scene1, EgScene, {NULL, true, true, NULL});
+	ecs_add(world, scene1, EgCamera3D);
+	ecs_set(world, scene1, EgPosition3F32, {0.0f, 0.0f, 0.0f});
+	ecs_set(world, scene1, EgQuaternionF32, {0.0f, 0.0f, 0.0f, 1.0f});
+
+	ecs_entity_t scene2 = ecs_new(world, 0);
 	ecs_set_name(world, scene2, "EgScene_2");
+	ecs_set(world, scene2, EgScene, {NULL, true, true, NULL});
+	ecs_add(world, scene2, EgCamera3D);
+	ecs_set(world, scene2, EgPosition3F32, {0.0f, 0.0f, 0.0f});
+	ecs_set(world, scene2, EgQuaternionF32, {0.0f, 0.0f, 0.0f, 1.0f});
 
 
 
@@ -109,32 +113,13 @@ int main(int argc, char *argv[])
 
 	{
 		ecs_entity_t e1 = ecs_new_w_pair(world, EcsChildOf, scene2);
-		ecs_entity_t e2 = ecs_new_w_pair(world, EcsChildOf, scene2);
-		ecs_entity_t e3 = ecs_new_w_pair(world, EcsChildOf, scene2);
-		ecs_entity_t e4 = ecs_new_w_pair(world, EcsChildOf, scene2);
-
-
-		ecs_set_name(world, e1, "Wall2_1");
-		ecs_set_name(world, e2, "Wall2_2");
-		ecs_set_name(world, e3, "Wall2_3");
-		ecs_set_name(world, e4, "Wall2_4");
+		ecs_set_name(world, e1, "Box1337");
 		ecs_set(world, e1, EgDraw1, {2});
-		ecs_set(world, e2, EgDraw, {2});
-		ecs_set(world, e3, EgDraw, {2});
-		ecs_set(world, e4, EgDraw, {2});
-		ecs_set(world, e1, EgColor, {20, 50, 220, 255});
-		ecs_set(world, e2, EgColor, {20, 200, 220, 255});
-		ecs_set(world, e3, EgColor, {150, 200, 20, 255});
-		ecs_set(world, e4, EgColor, {100, 100, 100, 255});
-		ecs_set(world, e1, EgBoxF32, {1.0f, 5.0f, 32.0f});
-		ecs_set(world, e2, EgBoxF32, {1.0f, 5.0f, 32.0f});
-		ecs_set(world, e3, EgBoxF32, {32.0f, 5.0f, 1.0f});
-		ecs_set(world, e4, EgBoxF32, {32.f, 0.1f, 32.f});
-		ecs_set(world, e1, EgPosition3F32, {-16.0f, 2.5f, 0.0f});
-		ecs_set(world, e2, EgPosition3F32, {16.0f, 2.5f, 0.0f});
-		ecs_set(world, e3, EgPosition3F32, {0.0f, 2.5f, 16.0f});
-		ecs_set(world, e4, EgPosition3F32, {0.f, -0.1f * 0.5f, 0.f});
+		ecs_set(world, e1, EgColor, {0, 255, 0, 255});
+		ecs_set(world, e1, EgBoxF32, {1.0f, 1.0f, 1.0f});
+		ecs_set(world, e1, EgPosition3F32, {0.0f, 0.0f, 0.0f});
 	}
+
 
 
 

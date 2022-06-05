@@ -114,20 +114,32 @@ static void System_Draw2D_Text(ecs_world_t * world, ecs_query_t *query, gs_immed
 
 
 
-static void System_Draw_Scene(ecs_world_t * world, ecs_query_t *query, gs_immediate_draw_t * gsi, gs_camera_t* cam)
+static void System_Draw_Scene(ecs_world_t * world, ecs_query_t *query, gs_immediate_draw_t * gsi)
 {
+	gs_camera_t cam = {0};
 	const gs_vec2 fbs = gs_platform_framebuffer_sizev(gs_platform_main_window());
 	ecs_iter_t it = ecs_query_iter(world, query);
 	while (ecs_query_next(&it))
 	{
 		EgScene *s = ecs_term(&it, EgScene, 1);
+		EgPosition3F32 *p = ecs_term(&it, EgPosition3F32, 2);
+		EgQuaternionF32 *q = ecs_term(&it, EgQuaternionF32, 3);
 		for (int i = 0; i < it.count; i ++)
 		{
 			gsi_defaults(gsi);
-			//if (ecs_has(it.world, s[i].camera, EgPosition3F32))
-			{
-				gsi_camera(gsi, cam, fbs.x, fbs.y);
-			};
+			cam.transform.position.x = p[i].x;
+			cam.transform.position.y = p[i].y;
+			cam.transform.position.z = p[i].z;
+			cam.transform.rotation.x = q[i].x;
+			cam.transform.rotation.y = q[i].y;
+			cam.transform.rotation.z = q[i].z;
+			cam.transform.rotation.w = q[i].w;
+			cam.proj_type = GS_PROJECTION_TYPE_PERSPECTIVE;
+			cam.fov = 60.f;
+			cam.near_plane = 0.1f;
+			cam.far_plane = 1000.f;
+			cam.ortho_scale = 1.f;
+			gsi_camera(gsi, &cam, fbs.x, fbs.y);
 			gsi_depth_enabled(gsi, s[i].enabled_depth);
 			gsi_face_cull_enabled(gsi, s[i].enabled_facecull);
 			System_Draw3D_Box1(world, s[i].query, gsi);

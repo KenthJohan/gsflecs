@@ -243,6 +243,8 @@ extern "C" {
 #define EcsTableHasOnSet               (1u << 17u)
 #define EcsTableHasUnSet               (1u << 18u)
 
+#define EcsTableMarkedForDelete        (1u << 30u)
+
 /* Composite table flags */
 #define EcsTableHasLifecycle        (EcsTableHasCtors | EcsTableHasDtors)
 #define EcsTableIsComplex           (EcsTableHasLifecycle | EcsTableHasUnion | EcsTableHasDisabled)
@@ -15812,13 +15814,13 @@ struct world {
     /** Delete all entities with specified component. */
     template <typename T>
     void delete_with() const {
-        delete_with(_::cpp_type<T>::id());
+        delete_with(_::cpp_type<T>::id(m_world));
     }
 
     /** Delete all entities with specified relation. */
     template <typename R, typename O>
     void delete_with() const {
-        delete_with(_::cpp_type<R>::id(), _::cpp_type<O>::id());
+        delete_with(_::cpp_type<R>::id(m_world), _::cpp_type<O>::id(m_world));
     }
 
     /** Remove all instances of specified id. */
@@ -15834,13 +15836,13 @@ struct world {
     /** Remove all instances of specified component. */
     template <typename T>
     void remove_all() const {
-        remove_all(_::cpp_type<T>::id());
+        remove_all(_::cpp_type<T>::id(m_world));
     }
 
     /** Remove all instances of specified relation. */
     template <typename R, typename O>
     void remove_all() const {
-        remove_all(_::cpp_type<R>::id(), _::cpp_type<O>::id());
+        remove_all(_::cpp_type<R>::id(m_world), _::cpp_type<O>::id(m_world));
     }
 
     /** Defer all operations called in function. If the world is already in

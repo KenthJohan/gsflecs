@@ -49,7 +49,6 @@ typedef struct
 	gs_asset_texture_t logo;
 	gs_asset_texture_t bg;
 	gs_gui_style_sheet_t menu_style_sheet;
-	gs_camera_t cam;
 	ecs_query_t * query_draw3d_box;
 	ecs_query_t * query_draw3d_box1;
 	ecs_query_t * query_draw2d_rect;
@@ -89,8 +88,6 @@ static void app_init()
 	app->cb = gs_command_buffer_new();
 	app->gsi = gs_immediate_draw_new(gs_platform_main_window());
 	gs_gui_init(&app->gui, gs_platform_main_window());
-	app->cam = gs_camera_perspective();
-	app->cam.transform.position = gs_v3(4.f, 2.f, 4.f);
 }
 
 
@@ -106,36 +103,17 @@ static void app_update()
 	gs_gui_context_t* gui = &app->gui;
 	gs_command_buffer_t* cb = &app->cb;
 	gs_immediate_draw_t* gsi = &app->gsi;
-	gs_camera_t* cam = &app->cam;
 
 	const gs_vec2 fbs = gs_platform_framebuffer_sizev(gs_platform_main_window());
 	if (gs_platform_key_pressed(GS_KEYCODE_ESC)) gs_quit();
 
 
+
 	gs_platform_t* platform = gs_subsystem(platform);
-	gs_vec3 dp;
-	const float mod = gs_platform_key_down(GS_KEYCODE_LEFT_SHIFT) ? 2.f : 1.f;
-	float dt = platform->time.delta;
-	dp.x = gs_platform_key_down(GS_KEYCODE_LEFT) - gs_platform_key_down(GS_KEYCODE_RIGHT);
-	dp.y = gs_platform_key_down(GS_KEYCODE_UP) - gs_platform_key_down(GS_KEYCODE_DOWN);
-	dp.z = gs_platform_key_down(GS_KEYCODE_Q) - gs_platform_key_down(GS_KEYCODE_E);
-	gs_camera_offset_orientation1(cam, dp.x, dp.y, dp.z);
-	gs_vec3 vel = {0};
-	if (gs_platform_key_down(GS_KEYCODE_W)) vel = gs_vec3_add(vel, gs_camera_forward(cam));
-	if (gs_platform_key_down(GS_KEYCODE_S)) vel = gs_vec3_add(vel, gs_camera_backward(cam));
-	if (gs_platform_key_down(GS_KEYCODE_A)) vel = gs_vec3_add(vel, gs_camera_left(cam));
-	if (gs_platform_key_down(GS_KEYCODE_D)) vel = gs_vec3_add(vel, gs_camera_right(cam));
-	if (gs_platform_key_down(GS_KEYCODE_SPACE)) vel = gs_vec3_add(vel, gs_camera_up(cam));
-	if (gs_platform_key_down(GS_KEYCODE_LEFT_CONTROL)) vel = gs_vec3_add(vel, gs_camera_down(cam));
-	float cam_speed = 5.0f;
-	cam->transform.position = gs_vec3_add(cam->transform.position, gs_vec3_scale(gs_vec3_norm(vel), dt * cam_speed * mod));
-
-
-
 	System_Camera3D_Controller(world, g_app.query_camera3d_controller, platform->time.delta);
+	System_Draw_Scene(world, g_app.query_scene, gsi);
 
 
-	System_Draw_Scene(world, g_app.query_scene, gsi, cam);
 	/*
 	// Draw 3D
 	gsi_defaults(gsi);
@@ -286,6 +264,8 @@ void EgGunslingerImport(ecs_world_t *world)
 	g_app.query_scene = ecs_query_init(world, &(ecs_query_desc_t) {
 	.filter.terms = {
 	{ .id = ecs_id(EgScene), .inout = EcsInOut },
+	{ .id = ecs_id(EgPosition3F32), .inout = EcsInOut },
+	{ .id = ecs_id(EgQuaternionF32), .inout = EcsInOut },
 	}
 	});
 
